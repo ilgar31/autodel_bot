@@ -12,7 +12,7 @@ class PromoState(StatesGroup):
 
 @router.message(F.text == "✉️ Создать рассылку")
 async def broadcast(message: types.Message, state: FSMContext):
-    if message.from_user.id not in ADMINS:
+    if int(message.from_user.id) not in ADMINS:
         await message.answer("❌ У вас нет доступа к этой команде.")
         return
     await message.answer("Введите текст для рассылки:")

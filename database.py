@@ -32,6 +32,17 @@ def init_db():
     """)
     conn.commit()
     conn.close()
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS admin_notifications (
+            admin_id INTEGER,
+            message_id INTEGER,
+            PRIMARY KEY (admin_id, message_id)
+        )
+    """)
+    conn.commit()
+    conn.close()
 
 def add_promotion(text):
     conn = sqlite3.connect(DB_NAME)
@@ -115,6 +126,28 @@ def end_chat(user_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM chat_requests WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+
+def add_admin_notification(admin_id, message_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO admin_notifications (admin_id, message_id) VALUES (?, ?)", (admin_id, message_id))
+    conn.commit()
+    conn.close()
+
+def get_admin_notifications(admin_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT message_id FROM admin_notifications WHERE admin_id = ?", (admin_id,))
+    result = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return result
+
+def delete_admin_notifications(admin_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM admin_notifications WHERE admin_id = ?", (admin_id,))
     conn.commit()
     conn.close()
 

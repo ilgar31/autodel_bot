@@ -1,14 +1,14 @@
 from aiogram import Router, types
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from database import add_chat_request, assign_admin_to_chat, get_chat_request, end_chat, get_chat_request_for_admin
+from database import add_chat_request, assign_admin_to_chat, get_chat_request, end_chat, get_chat_request_for_admin, add_admin_notification, get_admin_notifications, delete_admin_notifications
 from config import ADMINS
 from keyboards.main_menu import get_main_menu
 from aiogram import F
 
 router = Router()
 
-@router.message(F.text == "📝 Написать администратору")  # Фильтруем по тексту сообщения
+@router.message(F.text == "📝 Написать администратору")
 async def request_chat(message: types.Message):
     user_id = message.from_user.id
 
@@ -30,11 +30,13 @@ async def request_chat(message: types.Message):
 
     for admin_id in ADMINS:
         if not get_chat_request_for_admin(admin_id):
-            await message.bot.send_message(
+            sent_message = await message.bot.send_message(
                 admin_id,
                 f"Пользователь @{message.from_user.username} хочет начать диалог.",
                 reply_markup=builder.as_markup()
             )
+            # Сохраняем message_id уведомления
+            add_admin_notification(admin_id, sent_message.message_id)
 
 @router.callback_query(lambda c: c.data.startswith("accept_"))
 async def accept_chat_request(call: types.CallbackQuery):
@@ -52,44 +54,62 @@ async def accept_chat_request(call: types.CallbackQuery):
     await call.bot.send_message(admin_id, f"✅ Вы начали диалог с пользователем.", reply_markup=keyboard)
     await call.message.delete()
 
+    # Удаляем уведомления у остальных администраторов
+    for other_admin_id in ADMINS:
+        if other_admin_id != admin_id:
+            message_ids = get_admin_notifications(other_admin_id)
+            for message_id in message_ids:
+                try:
+                    await call.bot.delete_message(other_admin_id, message_id)
+                except Exception as e:
+                    print(f"Не удалось удалить сообщение у администратора {other_admin_id}: {e}")
+            delete_admin_notifications(other_admin_id)
 
     # Уведомляем остальных администраторов
     for other_admin_id in ADMINS:
         if other_admin_id != admin_id:
             await call.bot.send_message(other_admin_id, f"Диалог с пользователем уже ведет другой администратор.")
 
-@router.message(lambda message: message.text == "❌ Закончить диалог")
+@router.message(F.text == "❌ Закончить диалог")
 async def end_chat_command(message: types.Message):
     user_id = message.from_user.id
 
-    if user_id in ADMINS:
-        admin_id = get_chat_request_for_admin(user_id)
-        user_id, admin_id = admin_id, user_id
-        end_chat(user_id)
-        await message.bot.send_message(admin_id, "❌ Диалог завершен.",
-                                       reply_markup=get_main_menu(admin_id))
+    try:
+        if user_id in ADMINS:
+            admin_id = get_chat_request_for_admin(user_id)
+            user_id, admin_id = admin_id, user_id
+            end_chat(user_id)
+            await message.bot.send_message(admin_id, "❌ Диалог завершен.", reply_markup=get_main_menu(admin_id))
+            await message.bot.send_message(user_id, "❌ Диалог завершен.")
+            await message.bot.send_message(user_id, "Администратор завершил диалог.", reply_markup=get_main_menu(user_id))
+        else:
+            admin_id = get_chat_request(user_id)
+            if not admin_id:
+                await message.answer("❌ Диалог завершен.", reply_markup=get_main_menu(user_id))
+                for admin_id in ADMINS:
+                    message_ids = get_admin_notifications(admin_id)
+                    for message_id in message_ids:
+                        try:
+                            await message.bot.delete_message(admin_id, message_id)
+                        except Exception as e:
+                            print(f"Не удалось удалить сообщение у администратора {admin_id}: {e}")
+                    delete_admin_notifications(admin_id)
+                return
+            end_chat(user_id)
+            await message.bot.send_message(admin_id, "❌ Диалог завершен.")
+            await message.bot.send_message(admin_id, f"Пользователь @{message.from_user.username} завершил диалог.", reply_markup=get_main_menu(admin_id))
+            await message.bot.send_message(user_id, "❌ Диалог завершен.", reply_markup=get_main_menu(user_id))
+    except:
+        pass
 
-        await message.bot.send_message(user_id, "❌ Диалог завершен.")
-        await message.bot.send_message(user_id, "Администратор завершил диалог.",
-                                       reply_markup=get_main_menu(user_id))
-
-    else:
-        admin_id = get_chat_request(user_id)
-        end_chat(user_id)
-        await message.bot.send_message(admin_id,"❌ Диалог завершен.")
-        await message.bot.send_message(admin_id, f"Пользователь @{message.from_user.username} завершил диалог.", reply_markup=get_main_menu(admin_id))
-
-        await message.bot.send_message(user_id,"❌ Диалог завершен.", reply_markup=get_main_menu(user_id))
-
-@router.message()
-async def forward_message(message: types.Message):
-    user_id = message.from_user.id
-
-    if user_id in ADMINS:
-        admin_id = get_chat_request_for_admin(user_id)
-        user_id, admin_id = admin_id, user_id
-        await message.bot.send_message(user_id, f"{message.text}")
-
-    else:
-        admin_id = get_chat_request(user_id)
+@router.message(lambda message: get_chat_request(message.from_user.id))  # Фильтр для сообщений от пользователей в диалоге
+async def forward_message_from_user(message: types.Message):
+    admin_id = get_chat_request(message.from_user.id)
+    if admin_id:
         await message.bot.send_message(admin_id, f"Сообщение от пользователя @{message.from_user.username}:\n{message.text}")
+
+@router.message(lambda message: get_chat_request_for_admin(message.from_user.id))  # Фильтр для сообщений от администраторов в диалоге
+async def forward_message_from_admin(message: types.Message):
+    user_id = get_chat_request_for_admin(message.from_user.id)
+    if user_id:
+        await message.bot.send_message(user_id, f"Сообщение от администратора:\n{message.text}")
