@@ -15,7 +15,7 @@ def get_main_menu(user_id):
 
     # Если пользователь админ, добавляем кнопку управления акциями
     if user_id in ADMINS:
-        buttons.append([KeyboardButton(text="⚙️ Управление акциями")])
+        # buttons.append([KeyboardButton(text="⚙️ Управление акциями")])
         buttons.append([KeyboardButton(text="✉️ Создать рассылку")])
 
     # Создаем клавиатуру с кнопками

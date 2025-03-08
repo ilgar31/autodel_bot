@@ -1,12 +1,22 @@
 from aiogram import Router, types
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from database import add_chat_request, assign_admin_to_chat, get_chat_request, end_chat, get_chat_request_for_admin, add_admin_notification, get_admin_notifications, delete_admin_notifications
+from database import add_chat_request, assign_admin_to_chat, save_non_working_hours_request, get_chat_request, end_chat, get_chat_request_for_admin, add_admin_notification, get_admin_notifications, delete_admin_notifications
 from config import ADMINS
 from keyboards.main_menu import get_main_menu
 from aiogram import F
+from datetime import datetime, time
 
 router = Router()
+
+
+# Определяем рабочее время (с 8:00 до 19:00)
+WORK_START = time(8, 0)  # 8:00
+WORK_END = time(19, 0)   # 19:00
+
+def is_working_hours():
+    now = datetime.now().time()
+    return WORK_START <= now <= WORK_END
 
 @router.message(F.text == "📝 Написать администратору")
 async def request_chat(message: types.Message):
@@ -17,11 +27,22 @@ async def request_chat(message: types.Message):
         await message.answer("❌ Вы уже в активном диалоге.")
         return
 
+    # Проверяем, рабочее ли время
+    if not is_working_hours():
+        await message.answer(
+            "Добрый вечер, дорогой клиент! Наши администраторы обязательно ответят вам в рабочее время.")
+
+        # Записываем запрос пользователя в базу данных (например, в таблицу non_working_hours_requests)
+        # Здесь нужно добавить логику для сохранения запроса
+        save_non_working_hours_request(user_id, message.from_user.username)
+        return
+
     # Добавляем запрос на диалог
     add_chat_request(user_id)
 
     # Создаем клавиатуру с кнопкой "Закончить диалог"
-    keyboard = types.ReplyKeyboardMarkup(keyboard=[[types.KeyboardButton(text="❌ Закончить диалог")]], resize_keyboard=True)
+    keyboard = types.ReplyKeyboardMarkup(keyboard=[[types.KeyboardButton(text="❌ Закончить диалог")]],
+                                         resize_keyboard=True)
     await message.answer("⏳ Пожалуйста, подождите, пока специалист освободится.", reply_markup=keyboard)
 
     # Отправляем уведомление всем администраторам

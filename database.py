@@ -43,6 +43,17 @@ def init_db():
     """)
     conn.commit()
     conn.close()
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS non_working_hours_requests (
+            user_id INTEGER PRIMARY KEY,
+            username TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
 
 def add_promotion(text):
     conn = sqlite3.connect(DB_NAME)
@@ -148,6 +159,28 @@ def delete_admin_notifications(admin_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM admin_notifications WHERE admin_id = ?", (admin_id,))
+    conn.commit()
+    conn.close()
+
+def save_non_working_hours_request(user_id, username):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO non_working_hours_requests (user_id, username) VALUES (?, ?)", (user_id, username))
+    conn.commit()
+    conn.close()
+
+def get_non_working_hours_requests():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, username FROM non_working_hours_requests")
+    requests = cursor.fetchall()
+    conn.close()
+    return requests
+
+def delete_non_working_hours_requests():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM non_working_hours_requests")
     conn.commit()
     conn.close()
 

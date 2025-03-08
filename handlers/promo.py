@@ -5,7 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from config import ADMINS
 from database import add_promotion, remove_promotion, get_promotions
 from keyboards.main_menu import get_main_menu
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram import F  # Используем F для фильтрации
 
 router = Router()
@@ -15,12 +15,17 @@ class PromoState(StatesGroup):
 
 @router.message(F.text == "💰 Акции и предложения")  # Фильтруем по тексту сообщения
 async def show_promo(message: types.Message):
-    promotions = get_promotions()
-    if promotions:
-        text = "💰 Текущие акции и предложения:\n" + "\n".join(promotions)
-    else:
-        text = "На данный момент нет активных акций."
-    await message.answer(text)
+    inline_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Открыть сайт", url="https://avtodel.com/promo/")],
+    ])
+
+    await message.answer("Текущие акции и предложения доступны на нашем сайте:", reply_markup=inline_keyboard)
+    # promotions = get_promotions()
+    # if promotions:
+    #     text = "💰 Текущие акции и предложения:\n" + "\n".join(promotions)
+    # else:
+    #     text = "На данный момент нет активных акций."
+    # await message.answer(text)
 
 @router.message(F.text == "⚙️ Управление акциями")
 async def admin_panel(message: types.Message):
